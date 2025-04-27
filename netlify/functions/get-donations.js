@@ -41,21 +41,43 @@ exports.handler = async (event) => {
       );
       totalAmount = totalResult.data.amount;
     } catch (error) {
-      // If no total exists yet, keep it at 0
-      if (error.name !== 'NotFound') {
+      console.log("Error getting total:", error);
+      // If no total exists yet, create it
+      if (error.name === 'NotFound') {
+        await client.query(
+          q.Create(
+            q.Collection('totals'),
+            {
+              data: {
+                id: 'donation_total',
+                amount: 0
+              }
+            }
+          )
+        );
+      } else {
         throw error;
       }
     }
 
     // Get recent donations (last 5)
-    const donationsResult = await client.query(
-      q.Map(
-        q.Paginate(q.Documents(q.Collection('donations')), { size: 5, before: null }),
-        q.Lambda(x => q.Get(x))
-      )
-    );
+    let recentDonations = [];
+    try {
+      const donationsResult = await client.query(
+        q.Map(
+          q.Paginate(q.Documents(q.Collection('donations')), { size: 5 }),
+          q.Lambda(x => q.Get(x))
+        )
+      );
 
-    const recentDonations = donationsResult.data.map(d => d.data);
+      recentDonations = donationsResult.data.map(d => d.data);
+    } catch (error) {
+      console.log("Error getting donations:", error);
+      // If no donations exist yet, just continue with empty array
+      if (error.name !== 'NotFound') {
+        throw error;
+      }
+    }
 
     // Return both the total and recent donations
     return {
