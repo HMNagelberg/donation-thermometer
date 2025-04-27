@@ -3,7 +3,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const faunadb = require('faunadb');
 const q = faunadb.query;
 
-// Initialize FaunaDB client (free tier database that works with Netlify)
+// Initialize FaunaDB client
 const client = new faunadb.Client({
   secret: process.env.FAUNA_SECRET_KEY
 });
