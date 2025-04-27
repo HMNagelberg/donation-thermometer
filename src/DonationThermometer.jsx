@@ -4,103 +4,37 @@ const DonationThermometer = () => {
   const [totalDonations, setTotalDonations] = useState(0);
   const [goal, setGoal] = useState(10000);
   const [recentDonors, setRecentDonors] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // API endpoint for your Netlify function
-  const API_URL = '/.netlify/functions/get-donations';
-  
-  // Calculate percentage filled
-  const percentFilled = Math.min((totalDonations / goal) * 100, 100);
-  
-  // Fetch donation data on component mount and at regular intervals
-  useEffect(() => {
-    // Function to fetch data
-    const fetchDonationData = async () => {
-      try {
-        const response = await fetch(API_URL);
-        if (!response.ok) {
-          throw new Error('Failed to fetch donation data');
-        }
-        
-        const data = await response.json();
-        setTotalDonations(data.total);
-        
-        if (data.recentDonations && data.recentDonations.length > 0) {
-          setRecentDonors(data.recentDonations);
-        }
-        
-        setIsLoading(false);
-      } catch (err) {
-        console.error('Error fetching donation data:', err);
-        setError(err.message);
-        setIsLoading(false);
-      }
-    };
-    
-    // Fetch initial data
-    fetchDonationData();
-    
-    // Set up polling interval (every 10 seconds)
-    const intervalId = setInterval(fetchDonationData, 10000);
-    
-    // Clean up
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, []);
-  
-  // Admin panel state for testing
+  const [isLoading, setIsLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [adminKey, setAdminKey] = useState('');
   const [donorName, setDonorName] = useState('');
   const [donationAmount, setDonationAmount] = useState('');
   const [adminMessage, setAdminMessage] = useState('');
   
-  // Function to handle manual donation (for testing)
-  const handleManualDonation = async (e) => {
-    e.preventDefault();
-    
-    try {
-      const response = await fetch('/.netlify/functions/add-donation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: donorName,
-          amount: parseFloat(donationAmount),
-          adminKey: adminKey
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        // Show success message
-        setAdminMessage({ type: 'success', text: result.message });
-        
-        // Clear form
-        setDonorName('');
-        setDonationAmount('');
-        
-        // Refresh data immediately
-        fetch('/.netlify/functions/get-donations')
-          .then(res => res.json())
-          .then(data => {
-            setTotalDonations(data.total);
-            if (data.recentDonations && data.recentDonations.length > 0) {
-              setRecentDonors(data.recentDonations);
-            }
-          });
-      } else {
-        setAdminMessage({ type: 'error', text: result.error || 'Failed to add donation' });
-      }
-    } catch (error) {
-      console.error('Error adding manual donation:', error);
-      setAdminMessage({ type: 'error', text: 'Failed to connect to server' });
-    }
-  };
+  // Calculate percentage filled
+  const percentFilled = Math.min((totalDonations / goal) * 100, 100);
   
-  // Toggle admin panel with special key combination (Ctrl+Shift+A)
+  // Load saved data from localStorage
+  useEffect(() => {
+    const savedTotal = localStorage.getItem('totalDonations');
+    const savedDonors = localStorage.getItem('recentDonors');
+    
+    if (savedTotal) {
+      setTotalDonations(parseFloat(savedTotal));
+    }
+    
+    if (savedDonors) {
+      setRecentDonors(JSON.parse(savedDonors));
+    }
+    
+    setIsLoading(false);
+    
+    // Check URL for admin panel
+    if (window.location.search.includes('admin=true')) {
+      setShowAdmin(true);
+    }
+  }, []);
+  
+  // Toggle admin panel with keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'A') {
@@ -112,17 +46,56 @@ const DonationThermometer = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
   
+  // Handle adding a donation
+  const handleAddDonation = (e) => {
+    e.preventDefault();
+    
+    if (!donationAmount || isNaN(parseFloat(donationAmount)) || parseFloat(donationAmount) <= 0) {
+      setAdminMessage({ type: 'error', text: 'Please enter a valid amount' });
+      return;
+    }
+    
+    const amount = parseFloat(donationAmount);
+    const name = donorName.trim() || 'Anonymous';
+    const newDonation = {
+      name,
+      amount,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Update total
+    const newTotal = totalDonations + amount;
+    setTotalDonations(newTotal);
+    localStorage.setItem('totalDonations', newTotal.toString());
+    
+    // Update recent donors
+    const updatedDonors = [...recentDonors, newDonation].slice(-5);
+    setRecentDonors(updatedDonors);
+    localStorage.setItem('recentDonors', JSON.stringify(updatedDonors));
+    
+    // Clear form and show success message
+    setDonorName('');
+    setDonationAmount('');
+    setAdminMessage({ type: 'success', text: `Added $${amount} donation from ${name}` });
+  };
+  
+  // Reset all data
+  const handleReset = () => {
+    if (window.confirm('Are you sure you want to reset all donations to zero?')) {
+      setTotalDonations(0);
+      setRecentDonors([]);
+      localStorage.setItem('totalDonations', '0');
+      localStorage.setItem('recentDonors', JSON.stringify([]));
+      setAdminMessage({ type: 'success', text: 'All donation data has been reset' });
+    }
+  };
+  
   return (
     <div className="flex flex-col items-center justify-center w-full h-screen bg-gray-100 p-6">
       {isLoading ? (
         <div className="text-center">
-          <div className="text-2xl font-bold mb-2">Loading donation data...</div>
+          <div className="text-2xl font-bold mb-2">Loading...</div>
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        </div>
-      ) : error ? (
-        <div className="text-center text-red-500">
-          <div className="text-2xl font-bold mb-2">Error loading data</div>
-          <div>{error}</div>
         </div>
       ) : (
         <>
@@ -163,22 +136,12 @@ const DonationThermometer = () => {
             </div>
           </div>
           
-          {/* Admin Panel (hidden by default, toggle with Ctrl+Shift+A) */}
+          {/* Admin Panel (hidden by default, toggle with Ctrl+Shift+A or ?admin=true) */}
           {showAdmin && (
             <div className="fixed bottom-0 left-0 right-0 bg-white p-4 border-t-2 border-gray-300 shadow-lg">
               <h3 className="text-lg font-bold mb-2">Admin Panel</h3>
               
-              <form onSubmit={handleManualDonation} className="flex flex-wrap gap-2 items-end">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700">Admin Key</label>
-                  <input
-                    type="password"
-                    value={adminKey}
-                    onChange={(e) => setAdminKey(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    required
-                  />
-                </div>
+              <form onSubmit={handleAddDonation} className="flex flex-wrap gap-2 items-end">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700">Donor Name</label>
                   <input
@@ -206,6 +169,13 @@ const DonationThermometer = () => {
                   className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
                 >
                   Add Donation
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
+                >
+                  Reset All
                 </button>
                 <button
                   type="button"
