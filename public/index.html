@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fundraising Thermometer</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .thermometer-container {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .thermometer-bg {
+      height: 80px;
+      background-color: white;
+      border: 4px solid #ccc;
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .thermometer-fill {
+      height: 100%;
+      background: linear-gradient(to right, #ef4444, #f59e0b, #fbbf24);
+      transition: width 1s ease-out;
+    }
+    .percentage {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      color: white;
+      font-weight: bold;
+      font-size: 24px;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-blue-50">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-5xl font-bold mb-10 text-center text-blue-800">Fundraising Progress</h1>
+    
+    <!-- Goal and current amount -->
+    <div class="w-full max-w-4xl mx-auto text-center mb-4">
+      <div class="flex justify-between items-center">
+        <span id="current-amount" class="text-4xl font-bold text-green-600">$0</span>
+        <span id="goal-amount" class="text-2xl font-semibold text-gray-700">Goal: $10,000</span>
+      </div>
+    </div>
+    
+    <!-- Thermometer -->
+    <div class="thermometer-container mb-12">
+      <div class="thermometer-bg">
+        <div id="thermometer-fill" class="thermometer-fill" style="width: 0%;"></div>
+      </div>
+      <div id="percentage" class="percentage hidden">0%</div>
+      
+      <!-- Markers -->
+      <div class="mt-2 w-full flex justify-between text-sm font-medium text-gray-600">
+        <span>$0</span>
+        <span class="ml-auto">$10,000</span>
+      </div>
+    </div>
+    
+    <!-- Recent donors -->
+    <div class="w-full max-w-4xl mx-auto">
+      <h2 class="text-3xl font-semibold mb-4 text-blue-800">Recent Donors</h2>
+      <div class="bg-white rounded-lg shadow-lg p-6 border-2 border-blue-200">
+        <ul id="donors-list">
+          <!-- Donors will be added here -->
+        </ul>
+        <p id="no-donors" class="text-gray-500 text-center text-lg py-4">No donations yet</p>
+      </div>
+    </div>
+    
+    <!-- Admin Panel (hidden by default) -->
+    <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white p-4 border-t-2 border-gray-300 shadow-lg hidden">
+      <h3 class="text-lg font-bold mb-2">Admin Panel</h3>
+      
+      <form id="donation-form" class="flex flex-wrap gap-2 items-end">
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700">Donor Name</label>
+          <input
+            type="text"
+            id="donor-name"
+            class="mt-1 block w-full border border-gray-300 rounded-md p-2"
+            placeholder="Anonymous"
+          />
+        </div>
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700">Amount ($)</label>
+          <input
+            type="number"
+            id="donation-amount"
+            step="0.01"
+            min="0.01"
+            class="mt-1 block w-full border border-gray-300 rounded-md p-2"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+        >
+          Add Donation
+        </button>
+        <button
+          type="button"
+          id="reset-button"
+          class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
+        >
+          Reset All
+        </button>
+        <button
+          type="button"
+          id="close-admin"
+          class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+        >
+          Close
+        </button>
+      </form>
+      
+      <div id="admin-message" class="mt-2 p-2 rounded hidden"></div>
+    </div>
+  </div>
+
+  <script>
+    // State variables
+    let totalDonations = 0;
+    const goalAmount = 10000;
+    let recentDonors = [];
+    
+    // DOM elements
+    const currentAmountEl = document.getElementById('current-amount');
+    const goalAmountEl = document.getElementById('goal-amount');
+    const thermometerFillEl = document.getElementById('thermometer-fill');
+    const percentageEl = document.getElementById('percentage');
+    const donorsListEl = document.getElementById('donors-list');
+    const noDonorsEl = document.getElementById('no-donors');
+    const adminPanelEl = document.getElementById('admin-panel');
+    const donationFormEl = document.getElementById('donation-form');
+    const donorNameEl = document.getElementById('donor-name');
+    const donationAmountEl = document.getElementById('donation-amount');
+    const resetButtonEl = document.getElementById('reset-button');
+    const closeAdminEl = document.getElementById('close-admin');
+    const adminMessageEl = document.getElementById('admin-message');
+    
+    // Load data from localStorage
+    function loadData() {
+      const savedTotal = localStorage.getItem('totalDonations');
+      const savedDonors = localStorage.getItem('recentDonors');
+      
+      if (savedTotal) {
+        totalDonations = parseFloat(savedTotal);
+      }
+      
+      if (savedDonors) {
+        recentDonors = JSON.parse(savedDonors);
+      }
+      
+      updateDisplay();
+    }
+    
+    // Update the display with current data
+    function updateDisplay() {
+      // Update amount and goal
+      currentAmountEl.textContent = `$${totalDonations.toLocaleString()}`;
+      goalAmountEl.textContent = `Goal: $${goalAmount.toLocaleString()}`;
+      
+      // Update thermometer
+      const percentFilled = Math.min((totalDonations / goalAmount) * 100, 100);
+      thermometerFillEl.style.width = `${percentFilled}%`;
+      
+      // Update percentage text
+      percentageEl.textContent = `${Math.round(percentFilled)}%`;
+      percentageEl.style.left = `${Math.max(percentFilled - 5, 2)}%`;
+      
+      if (percentFilled < 5) {
+        percentageEl.classList.add('hidden');
+      } else {
+        percentageEl.classList.remove('hidden');
+      }
+      
+      // Update donors list
+      if (recentDonors.length > 0) {
+        noDonorsEl.classList.add('hidden');
+        donorsListEl.innerHTML = '';
+        
+        // Display donors in reverse order (newest first)
+        recentDonors.slice().reverse().forEach(donor => {
+          const li = document.createElement('li');
+          li.className = 'flex justify-between py-3 border-b border-gray-200 last:border-0 items-center';
+          li.innerHTML = `
+            <span class="font-medium text-xl text-gray-800">${donor.name}</span>
+            <span class="font-bold text-2xl text-green-600">$${donor.amount.toLocaleString()}</span>
+          `;
+          donorsListEl.appendChild(li);
+        });
+      } else {
+        noDonorsEl.classList.remove('hidden');
+        donorsListEl.innerHTML = '';
+      }
+    }
+    
+    // Add a new donation
+    function addDonation(name, amount) {
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        showAdminMessage('error', 'Please enter a valid amount');
+        return false;
+      }
+      
+      const donationAmount = parseFloat(amount);
+      const donorName = name.trim() || 'Anonymous';
+      const newDonation = {
+        name: donorName,
+        amount: donationAmount,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Update total
+      totalDonations += donationAmount;
+      localStorage.setItem('totalDonations', totalDonations.toString());
+      
+      // Update recent donors (keep only most recent 5)
+      recentDonors.push(newDonation);
+      if (recentDonors.length > 5) {
+        recentDonors = recentDonors.slice(-5);
+      }
+      localStorage.setItem('recentDonors', JSON.stringify(recentDonors));
+      
+      // Update display
+      updateDisplay();
+      
+      return true;
+    }
+    
+    // Reset all data
+    function resetData() {
+      if (confirm('Are you sure you want to reset all donations to zero?')) {
+        totalDonations = 0;
+        recentDonors = [];
+        localStorage.setItem('totalDonations', '0');
+        localStorage.setItem('recentDonors', JSON.stringify([]));
+        updateDisplay();
+        showAdminMessage('success', 'All donation data has been reset');
+      }
+    }
+    
+    // Show admin message
+    function showAdminMessage(type, text) {
+      adminMessageEl.className = `mt-2 p-2 rounded ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+      adminMessageEl.textContent = text;
+      adminMessageEl.classList.remove('hidden');
+      
+      // Hide the message after 3 seconds
+      setTimeout(() => {
+        adminMessageEl.classList.add('hidden');
+      }, 3000);
+    }
+    
+    // Check URL for admin parameter
+    function checkAdmin() {
+      if (window.location.search.includes('admin=true')) {
+        adminPanelEl.classList.remove('hidden');
+      }
+    }
+    
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      checkAdmin();
+      
+      // Admin panel keyboard shortcut
+      document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+          adminPanelEl.classList.toggle('hidden');
+        }
+      });
+      
+      // Donation form submission
+      donationFormEl.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const success = addDonation(donorNameEl.value, donationAmountEl.value);
+        
+        if (success) {
+          // Clear form and show success message
+          donorNameEl.value = '';
+          donationAmountEl.value = '';
+          showAdminMessage('success', `Added donation successfully!`);
+        }
+      });
+      
+      // Reset button
+      resetButtonEl.addEventListener('click', resetData);
+      
+      // Close admin panel
+      closeAdminEl.addEventListener('click', () => {
+        adminPanelEl.classList.add('hidden');
+      });
+    });
+  </script>
+</body>
+</html>
