@@ -35,7 +35,7 @@ exports.handler = async (event) => {
   try {
     const { name, amount, adminKey } = JSON.parse(event.body);
 
-    // Simple admin key validation (for demo purposes - replace with better auth)
+    // Simple admin key validation
     if (adminKey !== process.env.ADMIN_SECRET_KEY) {
       return {
         statusCode: 401,
@@ -89,7 +89,7 @@ exports.handler = async (event) => {
   }
 };
 
-// Function to update total amount (same as in stripe-webhook.js)
+// Function to update total amount
 async function updateTotalAmount(amountToAdd) {
   try {
     // Try to get the current total
