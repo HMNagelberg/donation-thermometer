@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvwDVAwZcxpGpU9SwIfmJS19N1z_XMx8Txw0PIKFRYbbX9Vaffdm6GKyEhXwpSHUPNObHVaScBKilf/pub?gid=0&single=true&output=csv";
-const goalAmount = 10000; // Change your goal here
+const goalAmount = 1000000; // Change your goal here
 
 export default function DonationThermometer() {
   const [currentAmount, setCurrentAmount] = useState(0);
